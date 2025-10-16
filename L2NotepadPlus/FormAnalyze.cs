@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static L2NotepadPlus.Analyze.ConfigTypeDetector;
 
 namespace L2NotepadPlus
 {
@@ -15,30 +16,45 @@ namespace L2NotepadPlus
     {
         public string OriginalContent { get; set; } = string.Empty;
         public string FileName { get; set; } = string.Empty;
+        public ConfigTypeDetector.ConfigType DetectedConfigType { get; set; } = ConfigTypeDetector.ConfigType.Unknown;
+
         public FormAnalyze()
         {
             InitializeComponent();
         }
         private void FormAnalyze_Load(object sender, EventArgs e)
         {
-            this.Text = $"{FileName} - L2Notepad Plus Analyze";
-
+            this.Text = $"Analyze - {FileName} ({DetectedConfigType})";
             SetupListView();
-
             listViewApps.KeyDown += ListViewApps_KeyDown;
 
-            if (!string.IsNullOrEmpty(OriginalContent))
+            if (string.IsNullOrEmpty(OriginalContent))
+                return;
+
+            try
             {
-                try
+                switch (DetectedConfigType)
                 {
-                    var apps = ParseApplist(OriginalContent);
-                    PopulateListView(apps);
+                    case ConfigType.Applist:
+                        var apps = ApplistParser.Parse(OriginalContent);
+                        PopulateListView(apps);
+                        break;
+
+                    case ConfigType.KernelConfig:
+                        var tlvList = KernelConfigParser.Parse(OriginalContent);
+                        PopulateListView_TLV(tlvList);
+                        break;
+
+                    default:
+                        MessageBox.Show($"{DetectedConfigType} türü henüz desteklenmiyor.",
+                                        "Bilgi", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        break;
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"APPLIST parse edilirken hata oluştu:\n{ex.Message}",
-                                    "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Analiz sırasında hata oluştu:\n{ex.Message}",
+                                "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -82,71 +98,6 @@ namespace L2NotepadPlus
             listViewApps.Columns.Add("Kernel IDs", 300);
             listViewApps.Columns.Add("Application", 250);
         }
-
-        private List<ApplicationEntry> ParseApplist(string hexData)
-        {
-            List<ApplicationEntry> result = new();
-            int i = 0;
-            int appIndex = 1;
-
-            while (i < hexData.Length)
-            {
-                // Güvenlik: sınır kontrolü
-                if (i + 2 > hexData.Length)
-                    break;
-
-                int aidLen = Convert.ToInt32(hexData.Substring(i, 2), 16);
-                i += 2;
-
-                if (i + aidLen * 2 > hexData.Length)
-                    throw new Exception("AID uzunluğu geçersiz.");
-
-                string aid = hexData.Substring(i, aidLen * 2);
-                i += 32; // AID alanı 16 byte (32 hex karakter)
-                if (i + 2 > hexData.Length)
-                    throw new Exception("Eksik Multiple Occurrence Flag.");
-
-                int moFlag = Convert.ToInt32(hexData.Substring(i, 2), 16);
-                i += 2;
-
-                if (i + 2 > hexData.Length)
-                    throw new Exception("Eksik KernelIDCount alanı.");
-
-                int kernelCount = Convert.ToInt32(hexData.Substring(i, 2), 16);
-                i += 2;
-
-                List<string> kernelIds = new();
-
-                for (int k = 0; k < kernelCount; k++)
-                {
-                    if (i + 2 > hexData.Length)
-                        throw new Exception("Eksik KernelID uzunluğu.");
-
-                    int kidLen = Convert.ToInt32(hexData.Substring(i, 2), 16);
-                    i += 2;
-
-                    if (i + kidLen * 2 > hexData.Length)
-                        throw new Exception("Eksik KernelID verisi.");
-
-                    string kid = hexData.Substring(i, kidLen * 2);
-                    i += kidLen * 2;
-                    kernelIds.Add(kid);
-                }
-
-                result.Add(new ApplicationEntry
-                {
-                    Index = appIndex++,
-                    AID = aid,
-                    AIDLength = aidLen,
-                    MultipleOccurrenceFlag = moFlag,
-                    KernelIDCount = kernelCount,
-                    KernelIDList = kernelIds
-                });
-            }
-
-            return result;
-        }
-
         private void PopulateListView(List<ApplicationEntry> apps)
         {
             listViewApps.BeginUpdate();
@@ -173,15 +124,33 @@ namespace L2NotepadPlus
 
             listViewApps.EndUpdate();
         }
-    }
 
-    public class ApplicationEntry
-    {
-        public int Index { get; set; }
-        public string AID { get; set; } = "";
-        public int AIDLength { get; set; }
-        public int MultipleOccurrenceFlag { get; set; }
-        public int KernelIDCount { get; set; }
-        public List<string> KernelIDList { get; set; } = new();
+        private void PopulateListView_TLV(List<TlvEntry> list)
+        {
+            listViewApps.Clear(); // tüm kolon ve satırları temizle
+
+            // Yeni başlıklar ekle
+            listViewApps.Columns.Add("Tag", 120);
+            listViewApps.Columns.Add("Length", 80);
+            listViewApps.Columns.Add("Value", 300);
+            listViewApps.Columns.Add("Tag Name", 250);
+
+            // TLV verilerini listeye ekle
+            foreach (var tlv in list)
+            {
+                var item = new ListViewItem(tlv.Tag);
+                item.SubItems.Add(tlv.Length);
+                item.SubItems.Add(tlv.Value);
+                item.SubItems.Add(tlv.Definition);
+                listViewApps.Items.Add(item);
+            }
+
+            // Kolon genişliklerini içeriğe göre ayarla
+            foreach (ColumnHeader col in listViewApps.Columns)
+                col.Width = -2;
+
+            listViewApps.View = View.Details;
+            listViewApps.FullRowSelect = true;
+        }
     }
 }

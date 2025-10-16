@@ -33,11 +33,12 @@
             // 
             // listViewApps
             // 
+            listViewApps.Font = new Font("Consolas", 12F, FontStyle.Bold, GraphicsUnit.Point, 162);
             listViewApps.FullRowSelect = true;
             listViewApps.GridLines = true;
             listViewApps.Location = new Point(12, 12);
             listViewApps.Name = "listViewApps";
-            listViewApps.Size = new Size(1265, 247);
+            listViewApps.Size = new Size(1663, 774);
             listViewApps.TabIndex = 0;
             listViewApps.UseCompatibleStateImageBehavior = false;
             listViewApps.View = View.Details;
@@ -46,7 +47,7 @@
             // 
             AutoScaleDimensions = new SizeF(12F, 26F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1289, 505);
+            ClientSize = new Size(1687, 798);
             Controls.Add(listViewApps);
             Font = new Font("Consolas", 11F);
             FormBorderStyle = FormBorderStyle.FixedSingle;

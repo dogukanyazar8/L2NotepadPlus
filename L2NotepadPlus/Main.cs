@@ -1,4 +1,5 @@
-﻿using L2NotepadPlus.Core;
+﻿using L2NotepadPlus.Analyze;
+using L2NotepadPlus.Core;
 using System;
 using System.IO;
 using System.Text;
@@ -233,22 +234,29 @@ namespace L2NotepadPlus
 
         private void menuL2ConfigAnalyze_Click(object sender, EventArgs e)
         {
-            // Eğer notepad boşsa kullanıcıya uyarı göster
-            if (string.IsNullOrWhiteSpace(mainNotepad.Text))
+            if (string.IsNullOrEmpty(currentFilePath))
             {
-                MessageBox.Show("Analiz edilecek bir içerik bulunamadı.", "Uyarı",
-                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Lütfen önce bir dosya açın.", "Uyarı", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Yeni analiz formunu aç
-            FormAnalyze analyzeForm = new FormAnalyze();
+            // 🔹 Enum artık nested: ConfigTypeDetector.ConfigType
+            var type = ConfigTypeDetector.DetectFromFileName(currentFilePath);
 
-            // İstersen notepad içeriğini bu forma aktarabilirsin
-            analyzeForm.OriginalContent = mainNotepad.Text;
-            analyzeForm.FileName = Path.GetFileName(currentFilePath);
+            if (type == ConfigTypeDetector.ConfigType.Unknown)
+            {
+                MessageBox.Show("Dosya tipi tanınamadı. Desteklenmeyen bir dosya olabilir.",
+                                "Bilinmeyen Dosya", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
-            // Analiz penceresini modal olarak göster
+            FormAnalyze analyzeForm = new FormAnalyze
+            {
+                OriginalContent = mainNotepad.Text,
+                FileName = Path.GetFileName(currentFilePath),
+                DetectedConfigType = type
+            };
+
             analyzeForm.ShowDialog(this);
         }
     }
