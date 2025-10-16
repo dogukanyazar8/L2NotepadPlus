@@ -10,26 +10,26 @@ namespace L2NotepadPlus
     public partial class MainForm : Form
     {
         // --- Durum değişkenleri ---
-        private string currentFilePath = string.Empty;
+        private string currentFilePath = string.Empty;  // Açık dosyanın tam yolu
         private const string appTitle = "L2Notepad Plus";
 
         private bool isDirty = false;        // Kullanıcı değişiklik yaptı mı
-        private bool isL2ConfigFile = false; // Açılan dosya L2Config mi
-        private bool isLoading = false;      // Dosya yükleniyor mu
-        private bool isSaving = false;       // Dosya kaydediliyor mu
+        private bool isL2ConfigFile = false; // Dosya türü L2Config mi
+        private bool isLoading = false;      // Dosya yükleme süreci aktif mi
+        private bool isSaving = false;       // Dosya kaydetme süreci aktif mi
 
-        // --- Kurucu Metot ---
+        // --- Kurucu metot ---
         public MainForm()
         {
             InitializeComponent();
             InitializeEditor();
 
-            // Form olayları
+            // Temel olay bağlantıları
             this.FormClosing += Main_FormClosing;
             this.mainNotepad.TextChanged += mainNotepad_TextChanged;
         }
 
-        // --- Başlangıç durumunu sıfırlar ---
+        // --- Editör başlangıç durumunu sıfırlar ---
         private void InitializeEditor()
         {
             mainNotepad.Clear();
@@ -41,7 +41,7 @@ namespace L2NotepadPlus
             UpdateTitle();
         }
 
-        // --- Pencere başlığını günceller ---
+        // --- Başlık çubuğunu günceller ---
         private void UpdateTitle()
         {
             string fileName = string.IsNullOrEmpty(currentFilePath)
@@ -52,10 +52,10 @@ namespace L2NotepadPlus
             this.Text = $"{fileName}{dirtyMark} - {appTitle}";
         }
 
-        // --- RichTextBox içeriği değiştiğinde çalışır ---
+        // --- RichTextBox içeriği değiştiğinde çağrılır ---
         private void mainNotepad_TextChanged(object? sender, EventArgs e)
         {
-            // Dosya yüklenirken veya kaydedilirken değişiklik olarak sayma
+            // Dosya yükleme/kaydetme esnasında değişiklik sayılmaz
             if (isLoading || isSaving)
                 return;
 
@@ -63,7 +63,7 @@ namespace L2NotepadPlus
             UpdateTitle();
         }
 
-        // --- Form kapatılırken değişiklik varsa uyar ---
+        // --- Form kapatılmadan önce olası değişiklikleri kontrol eder ---
         private void Main_FormClosing(object? sender, FormClosingEventArgs e)
         {
             if (!PromptSaveIfNeeded())
@@ -73,9 +73,8 @@ namespace L2NotepadPlus
         // --- Kullanıcıdan kaydetme onayı ister ---
         private bool PromptSaveIfNeeded()
         {
-            // Eğer içerik boşsa veya değişiklik yapılmadıysa sormaya gerek yok
             if (!isDirty || mainNotepad.TextLength == 0)
-                return true;
+                return true; // Değişiklik yoksa devam et
 
             var result = MessageBox.Show(
                 "Değişiklikler kaydedilsin mi?",
@@ -89,14 +88,15 @@ namespace L2NotepadPlus
             if (result == DialogResult.Yes)
                 return SaveCurrentDocument();
 
-            return true; // "Hayır" seçildi
+            return true; // "Hayır" seçildiyse devam et
         }
 
-        // --- Dosyayı kaydet (Save As gerekiyorsa diyalog açar) ---
+        // --- Dosyayı kaydeder; gerekirse Save As diyalog açar ---
         private bool SaveCurrentDocument()
         {
             bool saveAsL2Config = radioL2Config.Checked;
 
+            // Eğer daha önce dosya yolu belirlenmemişse kullanıcıdan alınır
             if (string.IsNullOrEmpty(currentFilePath))
             {
                 using SaveFileDialog saveDialog = new SaveFileDialog
@@ -113,26 +113,23 @@ namespace L2NotepadPlus
             }
 
             string content = mainNotepad.Text;
-
-            // Kaydetme süreci başlıyor
             isSaving = true;
             bool success = L2ConfigWriter.WriteFile(currentFilePath, content, saveAsL2Config, Encoding.UTF8);
             isSaving = false;
 
-            // Başarılıysa durumu sıfırla
             if (success)
             {
                 isDirty = false;
                 string fileType = saveAsL2Config ? "L2Config dosyası" : "Metin dosyası";
-                MessageBox.Show($"{fileType} başarıyla kaydedildi.", "Kaydetme Başarılı",
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"{fileType} başarıyla kaydedildi.",
+                                "Kaydetme Başarılı", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 UpdateTitle();
             }
 
             return success;
         }
 
-        // --- Kullanıcı "File → Open" seçerse dosya aç ---
+        // --- Menü: File → Open ---
         private void menuFileOpen_Click(object sender, EventArgs e)
         {
             if (!PromptSaveIfNeeded())
@@ -149,18 +146,15 @@ namespace L2NotepadPlus
                 string filePath = openDialog.FileName;
                 bool detectedL2;
 
-                // Dosya yüklenmeye başlıyor
                 isLoading = true;
                 string content = L2ConfigReader.Read(filePath, string.Empty, out detectedL2);
-                mainNotepad.Text = content;
                 isLoading = false;
 
-                // Dosya bilgilerini güncelle
+                mainNotepad.Text = content;
                 currentFilePath = filePath;
                 isDirty = false;
                 isL2ConfigFile = detectedL2;
 
-                // Radiobuttonları tespit edilen dosya türüne göre işaretle
                 radioL2Config.Checked = detectedL2;
                 radioTextFile.Checked = !detectedL2;
 
@@ -168,7 +162,61 @@ namespace L2NotepadPlus
             }
         }
 
-        // --- Basit kaydet (Save) ---
+        // --- Menü: File → Save ---
+        private void menuFileSave_Click(object sender, EventArgs e)
+        {
+            Save();
+        }
+
+        // --- Menü: File → New ---
+        private void menuFileNew_Click(object sender, EventArgs e)
+        {
+            if (isDirty)
+            {
+                DialogResult result = MessageBox.Show(
+                    "Değişiklikleri kaydetmeden yeni belge açmak istiyor musunuz?",
+                    "Yeni Belge", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (result == DialogResult.No)
+                    return;
+            }
+
+            InitializeEditor();
+        }
+
+        // --- Dosyayı analiz formunda açar ---
+        private void menuL2ConfigAnalyze_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(currentFilePath))
+            {
+                MessageBox.Show("Lütfen önce bir dosya açın.", "Uyarı",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var type = ConfigTypeDetector.DetectFromFileName(currentFilePath);
+            if (type == ConfigTypeDetector.ConfigType.Unknown)
+            {
+                MessageBox.Show("Dosya tipi tanınamadı.",
+                                "Bilinmeyen Dosya", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using var analyzeForm = new FormAnalyze
+            {
+                OriginalContent = mainNotepad.Text,
+                FileName = Path.GetFileName(currentFilePath),
+                DetectedConfigType = type
+            };
+
+            var result = analyzeForm.ShowDialog(this);
+
+            // Analyze formda değişiklik yapıldıysa içeriği güncelle
+            if (result == DialogResult.OK && !string.IsNullOrEmpty(analyzeForm.UpdatedHexData))
+                mainNotepad.Text = analyzeForm.UpdatedHexData;
+        }
+
+        // --- Basit kaydet işlemi (menüden veya kısayoldan) ---
         private bool Save()
         {
             bool saveAsL2Config = radioL2Config.Checked;
@@ -189,8 +237,6 @@ namespace L2NotepadPlus
             }
 
             string content = mainNotepad.Text;
-
-            // Kaydetme süreci başlıyor
             isSaving = true;
             bool success = L2ConfigWriter.WriteFile(currentFilePath, content, saveAsL2Config, Encoding.UTF8);
             isSaving = false;
@@ -199,65 +245,12 @@ namespace L2NotepadPlus
             {
                 isDirty = false;
                 string fileType = saveAsL2Config ? "L2Config dosyası" : "Metin dosyası";
-                MessageBox.Show($"{fileType} başarıyla kaydedildi.", "Kaydetme Başarılı",
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"{fileType} başarıyla kaydedildi.",
+                                "Kaydetme Başarılı", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 UpdateTitle();
             }
 
             return success;
-        }
-
-        // --- Menü: File → Save ---
-        private void menuFileSave_Click(object sender, EventArgs e)
-        {
-            Save();
-        }
-
-        // --- Menü: File → New ---
-        private void menuFileNew_Click(object sender, EventArgs e)
-        {
-            // Eğer kullanıcı değişiklik yaptıysa uyar
-            if (isDirty)
-            {
-                DialogResult result = MessageBox.Show(
-                    "Değişiklikleri kaydetmeden yeni belge açmak istiyor musunuz?",
-                    "Yeni Belge",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
-
-                if (result == DialogResult.No)
-                    return;
-            }
-
-            InitializeEditor();
-        }
-
-        private void menuL2ConfigAnalyze_Click(object sender, EventArgs e)
-        {
-            if (string.IsNullOrEmpty(currentFilePath))
-            {
-                MessageBox.Show("Lütfen önce bir dosya açın.", "Uyarı", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // 🔹 Enum artık nested: ConfigTypeDetector.ConfigType
-            var type = ConfigTypeDetector.DetectFromFileName(currentFilePath);
-
-            if (type == ConfigTypeDetector.ConfigType.Unknown)
-            {
-                MessageBox.Show("Dosya tipi tanınamadı. Desteklenmeyen bir dosya olabilir.",
-                                "Bilinmeyen Dosya", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            FormAnalyze analyzeForm = new FormAnalyze
-            {
-                OriginalContent = mainNotepad.Text,
-                FileName = Path.GetFileName(currentFilePath),
-                DetectedConfigType = type
-            };
-
-            analyzeForm.ShowDialog(this);
         }
     }
 }

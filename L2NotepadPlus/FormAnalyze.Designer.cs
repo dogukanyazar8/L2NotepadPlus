@@ -42,6 +42,7 @@
             listViewApps.TabIndex = 0;
             listViewApps.UseCompatibleStateImageBehavior = false;
             listViewApps.View = View.Details;
+            listViewApps.MouseDoubleClick += listViewApps_MouseDoubleClick;
             // 
             // FormAnalyze
             // 
@@ -55,6 +56,7 @@
             Name = "FormAnalyze";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "L2Notepad Plus - Analyzer";
+            FormClosing += FormAnalyze_FormClosing;
             Load += FormAnalyze_Load;
             ResumeLayout(false);
         }
