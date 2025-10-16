@@ -233,7 +233,23 @@ namespace L2NotepadPlus
 
         private void menuL2ConfigAnalyze_Click(object sender, EventArgs e)
         {
+            // Eğer notepad boşsa kullanıcıya uyarı göster
+            if (string.IsNullOrWhiteSpace(mainNotepad.Text))
+            {
+                MessageBox.Show("Analiz edilecek bir içerik bulunamadı.", "Uyarı",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
+            // Yeni analiz formunu aç
+            FormAnalyze analyzeForm = new FormAnalyze();
+
+            // İstersen notepad içeriğini bu forma aktarabilirsin
+            analyzeForm.OriginalContent = mainNotepad.Text;
+            analyzeForm.FileName = Path.GetFileName(currentFilePath);
+
+            // Analiz penceresini modal olarak göster
+            analyzeForm.ShowDialog(this);
         }
     }
 }
