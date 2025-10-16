@@ -7,62 +7,63 @@ using System.Threading.Tasks;
 
 namespace L2NotepadPlus.Analyze
 {
+    public class TlvEntry
+    {
+        public string Tag { get; set; } = "";
+        public string Length { get; set; } = "";
+        public string Value { get; set; } = "";
+        public string Definition { get; set; } = "";
+
+        public override string ToString() => $"{Tag} {Length} {Value} - {Definition}";
+    }
     public static class KernelConfigParser
     {
-        private static Dictionary<string, string>? TagDefinitions;
-
-        /// <summary>
-        /// JSON dosyasından tag açıklamalarını yükler.
-        /// </summary>
-        private static void LoadTagDefinitions()
-        {
-            if (TagDefinitions != null) return; // daha önce yüklendiyse tekrar okuma
-
-            string jsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "KernelTags.json");
-            if (!File.Exists(jsonPath))
-                throw new FileNotFoundException("Kernel tag tanım dosyası bulunamadı.", jsonPath);
-
-            string json = File.ReadAllText(jsonPath);
-            TagDefinitions = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
-                             ?? new Dictionary<string, string>();
-        }
-
         /// <summary>
         /// TLV formatındaki KernelConfig içeriğini parse eder.
         /// </summary>
         public static List<TlvEntry> Parse(string hexData)
         {
-            LoadTagDefinitions();
+            // Tag açıklamaları MappingLoader üzerinden alınır
+            var tagMap = MappingLoader.Load("kernelconfig");
+
             List<TlvEntry> result = new();
             byte[] buffer = StringToByteArray(hexData);
             int pos = 0;
 
             while (pos < buffer.Length)
             {
-                // Tag belirleme
-                byte[] tagBytes = GetTag(buffer, ref pos);
-                string tag = ByteArrayToString(tagBytes);
-
-                // Length belirleme
-                int valueLength = GetLength(buffer, ref pos);
-
-                // Value belirleme
-                byte[] valueBytes = buffer.Skip(pos).Take(valueLength).ToArray();
-                pos += valueBytes.Length;
-                string value = ByteArrayToString(valueBytes);
-
-                // Tanım bul
-                string definition = TagDefinitions!.TryGetValue(tag, out var def)
-                    ? def
-                    : "UNDEFINED TAG";
-
-                result.Add(new TlvEntry
+                try
                 {
-                    Tag = tag,
-                    Length = valueLength.ToString("X2"),
-                    Value = value,
-                    Definition = definition
-                });
+                    // Tag belirleme
+                    byte[] tagBytes = GetTag(buffer, ref pos);
+                    string tag = ByteArrayToString(tagBytes);
+
+                    // Length belirleme
+                    int valueLength = GetLength(buffer, ref pos);
+
+                    // Value belirleme
+                    byte[] valueBytes = buffer.Skip(pos).Take(valueLength).ToArray();
+                    pos += valueBytes.Length;
+                    string value = ByteArrayToString(valueBytes);
+
+                    // JSON'dan Tag açıklamasını bul
+                    string definition = tagMap.TryGetValue(tag, out string? mappedDef)
+                        ? mappedDef
+                        : "UNDEFINED TAG";
+
+                    result.Add(new TlvEntry
+                    {
+                        Tag = tag,
+                        Length = valueLength.ToString("X2"),
+                        Value = value,
+                        Definition = definition
+                    });
+                }
+                catch
+                {
+                    // Hatalı TLV veri dizisiyle karşılaşıldığında parse'ı durdurma
+                    break;
+                }
             }
 
             return result;
@@ -111,15 +112,5 @@ namespace L2NotepadPlus.Analyze
 
         private static string ByteArrayToString(byte[] ba) =>
             BitConverter.ToString(ba).Replace("-", "");
-    }
-
-    public class TlvEntry
-    {
-        public string Tag { get; set; } = "";
-        public string Length { get; set; } = "";
-        public string Value { get; set; } = "";
-        public string Definition { get; set; } = "";
-
-        public override string ToString() => $"{Tag} {Length} {Value} - {Definition}";
     }
 }

@@ -37,7 +37,7 @@ namespace L2NotepadPlus
                 {
                     case ConfigType.Applist:
                         var apps = ApplistParser.Parse(OriginalContent);
-                        PopulateListView(apps);
+                        PopulateListView_Applist(apps);
                         break;
 
                     case ConfigType.KernelConfig:
@@ -98,54 +98,73 @@ namespace L2NotepadPlus
             listViewApps.Columns.Add("Kernel IDs", 300);
             listViewApps.Columns.Add("Application", 250);
         }
-        private void PopulateListView(List<ApplicationEntry> apps)
+        private void PopulateListView_Applist(List<ApplicationEntry> apps)
         {
-            listViewApps.BeginUpdate();
-            listViewApps.Items.Clear();
+            listViewApps.Clear();
 
-            var aidMap = AidMappingLoader.Load();
+            // Başlıkları ayarla
+            listViewApps.Columns.Add("AID Length", 90);
+            listViewApps.Columns.Add("AID", 180);
+            listViewApps.Columns.Add("Kernel Count", 100);
+            listViewApps.Columns.Add("Application Name", 250);
 
+            // JSON'dan AID eşleştirme tablosunu yükle
+            var aidMap = MappingLoader.Load("applist");
+
+            // Her uygulama için ListView satırı oluştur
             foreach (var app in apps)
             {
-                aidMap.TryGetValue(app.AID, out string? appName);
+                string appName = aidMap.TryGetValue(app.AID, out string? mappedName)
+                    ? mappedName
+                    : "(Unknown Application)";
 
-                ListViewItem item = new(app.Index.ToString());
+                ListViewItem item = new ListViewItem(app.AIDLength.ToString());
                 item.SubItems.Add(app.AID);
-                item.SubItems.Add(app.AIDLength.ToString());
-                item.SubItems.Add(app.MultipleOccurrenceFlag.ToString());
-                item.SubItems.Add(app.KernelIDCount.ToString());
-                item.SubItems.Add(string.Join(", ", app.KernelIDList));
-                item.SubItems.Add(appName ?? "");
+                item.SubItems.Add(app.KernelIDList.Count.ToString());
+                item.SubItems.Add(appName);
+
                 listViewApps.Items.Add(item);
             }
 
-            listViewApps.AutoResizeColumns(ColumnHeaderAutoResizeStyle.ColumnContent);
-            listViewApps.AutoResizeColumns(ColumnHeaderAutoResizeStyle.HeaderSize);
+            // Otomatik kolon genişlikleri
+            foreach (ColumnHeader col in listViewApps.Columns)
+                col.Width = -2;
 
-            listViewApps.EndUpdate();
+            listViewApps.View = View.Details;
+            listViewApps.FullRowSelect = true;
         }
 
         private void PopulateListView_TLV(List<TlvEntry> list)
         {
             listViewApps.Clear(); // tüm kolon ve satırları temizle
 
-            // Yeni başlıklar ekle
+            // Başlıklar
             listViewApps.Columns.Add("Tag", 120);
             listViewApps.Columns.Add("Length", 80);
             listViewApps.Columns.Add("Value", 300);
             listViewApps.Columns.Add("Tag Name", 250);
 
-            // TLV verilerini listeye ekle
+            // JSON'dan tag açıklamaları yüklenir
+            var tagMap = MappingLoader.Load("kernelconfig");
+
+            // TLV verilerini ekle
             foreach (var tlv in list)
             {
+                // JSON'daki açıklamayı bul
+                string tagName = tagMap.TryGetValue(tlv.Tag, out string? mappedName)
+                    ? mappedName
+                    : "UNDEFINED TAG";
+
+                // ListView satırını oluştur
                 var item = new ListViewItem(tlv.Tag);
                 item.SubItems.Add(tlv.Length);
                 item.SubItems.Add(tlv.Value);
-                item.SubItems.Add(tlv.Definition);
+                item.SubItems.Add(tagName);
+
                 listViewApps.Items.Add(item);
             }
 
-            // Kolon genişliklerini içeriğe göre ayarla
+            // Otomatik kolon genişlikleri
             foreach (ColumnHeader col in listViewApps.Columns)
                 col.Width = -2;
 

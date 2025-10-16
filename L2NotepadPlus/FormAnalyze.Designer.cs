@@ -47,7 +47,7 @@
             // 
             AutoScaleDimensions = new SizeF(12F, 26F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1687, 798);
+            ClientSize = new Size(1687, 1338);
             Controls.Add(listViewApps);
             Font = new Font("Consolas", 11F);
             FormBorderStyle = FormBorderStyle.FixedSingle;
